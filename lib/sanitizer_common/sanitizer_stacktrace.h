@@ -15,6 +15,8 @@
 
 #include "sanitizer_internal_defs.h"
 
+#include "sanitizer_allocator_internal.h"
+
 namespace __sanitizer {
 
 static const uptr kStackTraceMax = 256;
@@ -29,12 +31,42 @@ static const uptr kStackTraceMax = 256;
 # define SANITIZER_CAN_FAST_UNWIND 1
 #endif
 
+struct BlockedInfo {
+  uptr frame_num;
+
+  char *module;
+  uptr module_offset;
+
+  BlockedInfo() {
+    internal_memset(this, 0, sizeof(BlockedInfo));
+  }
+
+  // Deletes all strings and resets all fields.
+  void Clear() {
+    InternalFree(module);
+    internal_memset(this, 0, sizeof(BlockedInfo));
+  }
+
+  void FillFrameAndModuleInfo(uptr frame, const char *mod_name,
+                              uptr mod_offset) {
+    frame_num = frame;
+    module = internal_strdup(mod_name);
+    module_offset = mod_offset;
+  }
+
+};
+
 struct StackTrace {
   typedef bool (*SymbolizeCallback)(const void *pc, char *out_buffer,
                                      int out_size);
   uptr top_frame_bp;
   uptr size;
   uptr trace[kStackTraceMax];
+
+  static bool InRuntimeBlacklistStack(const uptr *addr, uptr size);
+  bool InRuntimeBlacklist() const {
+    return InRuntimeBlacklistStack(trace, size);
+  }
 
   // Prints a symbolized stacktrace, followed by an empty line.
   static void PrintStack(const uptr *addr, uptr size);

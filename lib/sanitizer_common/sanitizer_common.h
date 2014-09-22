@@ -353,6 +353,10 @@ INLINE bool IsSpace(int c) {
 INLINE bool IsDigit(int c) {
   return (c >= '0') && (c <= '9');
 }
+INLINE bool IsXDigit(int c) {
+  if (IsDigit(c)) return true;
+  return (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+}
 INLINE int ToLower(int c) {
   return (c >= 'A' && c <= 'Z') ? (c + 'a' - 'A') : c;
 }

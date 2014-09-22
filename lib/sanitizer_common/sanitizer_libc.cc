@@ -202,7 +202,7 @@ char *internal_strstr(const char *haystack, const char *needle) {
 }
 
 s64 internal_simple_strtoll(const char *nptr, char **endptr, int base) {
-  CHECK_EQ(base, 10);
+  //CHECK_EQ(base, 10);
   while (IsSpace(*nptr)) nptr++;
   int sgn = 1;
   u64 res = 0;
@@ -215,12 +215,25 @@ s64 internal_simple_strtoll(const char *nptr, char **endptr, int base) {
     sgn = -1;
     nptr++;
   }
-  while (IsDigit(*nptr)) {
-    res = (res <= UINT64_MAX / 10) ? res * 10 : UINT64_MAX;
-    int digit = ((*nptr) - '0');
-    res = (res <= UINT64_MAX - digit) ? res + digit : UINT64_MAX;
-    have_digits = true;
-    nptr++;
+  switch (base) {
+    case 10:
+      while (IsDigit(*nptr)) {
+        res = (res <= UINT64_MAX / 10) ? res * 10 : UINT64_MAX;
+        int digit = ((*nptr) - '0');
+        res = (res <= UINT64_MAX - digit) ? res + digit : UINT64_MAX;
+        have_digits = true;
+        nptr++;
+      }
+      break;
+    case 16:
+      while (IsXDigit(*nptr)) {
+        res = (res <= UINT64_MAX / 16) ? res * 16 : UINT64_MAX;
+        int xdigit = IsDigit(*nptr) ? ((*nptr) - '0') : (ToLower(*nptr) - 'a' + 10);
+        res = (res <= UINT64_MAX - xdigit) ? res + xdigit : UINT64_MAX;
+        have_digits = true;
+        nptr++;
+      }
+      break;
   }
   if (endptr != 0) {
     *endptr = (have_digits) ? (char*)nptr : old_nptr;
@@ -230,6 +243,59 @@ s64 internal_simple_strtoll(const char *nptr, char **endptr, int base) {
   } else {
     return (res > INT64_MAX) ? INT64_MIN : ((s64)res * -1);
   }
+}
+
+// DO NOT COMMIT IT!!
+// http://www.opensource.apple.com/source/Libc/Libc-167/string.subproj/strtok.c
+// Borrow from the URL above, only for runtime_blacklist demo
+char *internal_strtok(char *s, const char *delim) {
+#define NULL ((char *)0)
+
+        char *spanp;
+        int c, sc;
+        char *tok;
+        static char *last;
+
+        if (s == NULL && (s = last) == NULL)
+                return (NULL);
+
+        /*
+         * Skip (span) leading delimiters (s += strspn(s, delim), sort of).
+         */
+cont:
+        c = *s++;
+        for (spanp = (char *)delim; (sc = *spanp++) != 0;) {
+                if (c == sc)
+                        goto cont;
+        }
+
+        if (c == 0) {           /* no non-delimiter characters */
+                last = NULL;
+                return (NULL);
+        }
+        tok = s - 1;
+
+        /*
+         * Scan token (scan for delimiters: s += strcspn(s, delim), sort of).
+         * Note that delim must have one NUL; we stop if we see that, too.
+         */
+        for (;;) {
+                c = *s++;
+                spanp = (char *)delim;
+                do {
+                        if ((sc = *spanp++) == c) {
+                                if (c == 0)
+                                        s = NULL;
+                                else
+                                        s[-1] = 0;
+                                last = s;
+                                return (tok);
+                        }
+                } while (sc != 0);
+        }
+        /* NOTREACHED */
+
+#undef NULL
 }
 
 bool mem_is_zero(const char *beg, uptr size) {

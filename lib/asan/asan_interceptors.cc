@@ -22,6 +22,8 @@
 #include "asan_stats.h"
 #include "sanitizer_common/sanitizer_libc.h"
 
+#include "sanitizer_common/sanitizer_symbolizer.h"
+
 namespace __asan {
 
 // Return true if we can quickly decide that the region is unpoisoned.
@@ -360,7 +362,11 @@ void *__asan_memcpy(void *to, const void *from, uptr size) {
     return REAL(memcpy)(to, from, size);
   }
   ENSURE_ASAN_INITED();
-  if (flags()->replace_intrin) {
+  bool is_blocked;
+  IN_RUNTIME_BLACKLIST(is_blocked)
+  if (flags()->replace_intrin && !is_blocked) {
+    //PRINT_CURRENT_STACK()
+    Report("flags()->replace_intrin = true\n");
     if (to != from) {
       // We do not treat memcpy with to==from as a bug.
       // See http://llvm.org/bugs/show_bug.cgi?id=11763.

@@ -22,6 +22,89 @@ static void PrintStackFramePrefix(InternalScopedString *buffer, uptr frame_num,
   buffer->append("    #%zu 0x%zx", frame_num, pc);
 }
 
+bool StackTrace::InRuntimeBlacklistStack(const uptr *addr, uptr size) {
+  // TODO: Read runtime_blacklist once
+
+#define NULL ((char *)0)
+  // Open the runtime blacklist
+  const char *runtime_blacklist = common_flags()->runtime_blacklist;
+  uptr rb_fd = OpenFile(runtime_blacklist, false);
+  if (internal_iserror(rb_fd)) {
+    Report("Open %s failed\n", runtime_blacklist);
+    return false;
+  }
+
+  // Read the runtime blacklist
+  uptr fsize = internal_filesize(rb_fd);
+  InternalScopedBuffer<char> buff(fsize + 1);
+  if (fsize != internal_read(rb_fd, buff.data(), fsize))
+    Report("Read %s failed\n", runtime_blacklist);
+  buff[fsize] = '\0';
+
+  // Parse the runtime blacklist
+  InternalScopedBuffer<BlockedInfo> blocked_infos(64);
+  uptr blocked_num = 0;
+  char * pch;
+  pch = internal_strtok(buff.data()," \n");
+  while (pch != NULL) {
+    uptr frame_num = internal_atoll(pch);
+
+    pch = internal_strtok(NULL, " \n");
+    char *module = pch;
+
+    pch = internal_strtok(NULL, " \n");
+    uptr module_offset = internal_simple_strtoll(pch, (char**)0, 16);
+    blocked_infos[blocked_num].FillFrameAndModuleInfo(frame_num, module, module_offset);
+
+#if RTBL_DEBUG
+    Report("frame_num = %d, module = %s, module_offset = %x\n",
+              blocked_infos[blocked_num].frame_num,
+              blocked_infos[blocked_num].module,
+              blocked_infos[blocked_num].module_offset);
+#endif
+
+    blocked_num++;
+
+    pch = internal_strtok(NULL, " \n");
+  }
+
+  // Compare the stack frame with the runtime blacklist
+  if (addr == 0 || size == 0)
+    return false;
+  InternalScopedBuffer<AddressInfo> addr_frames(64);
+  uptr frame_num = 0;
+  for (uptr i = 0; i < size && addr[i]; i++) {
+    // PCs in stack traces are actually the return addresses, that is,
+    // addresses of the next instructions after the call.
+    uptr pc = GetPreviousInstructionPc(addr[i]);
+    uptr addr_frames_num = Symbolizer::GetOrInit()->SymbolizePC(
+        pc, addr_frames.data(), addr_frames.size());
+    if (addr_frames_num == 0) {
+      frame_num++;
+      continue;
+    }
+    for (uptr j = 0; j < addr_frames_num; j++) {
+      AddressInfo &info = addr_frames[j];
+      if (info.module) {
+        //if ((internal_strcmp(info.module, "libbug.so") == 0) && info.module_offset == 0x74b)
+        // TODO: Improve compare algorithm
+        for (uptr blocked = 0; blocked < blocked_num; blocked++) {
+          if (frame_num == blocked_infos[blocked].frame_num &&
+               (internal_strcmp(info.module, blocked_infos[blocked].module) == 0) &&
+               info.module_offset == blocked_infos[blocked].module_offset) {
+            return true;
+          }
+        }
+      }
+      frame_num++;
+      info.Clear();
+    }
+  }
+  return false;
+
+#undef NULL
+}
+
 void StackTrace::PrintStack(const uptr *addr, uptr size) {
   if (addr == 0 || size == 0) {
     Printf("    <empty stack>\n\n");

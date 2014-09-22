@@ -60,6 +60,7 @@ struct CommonFlags {
   const char *suppressions;
   bool print_suppressions;
   bool disable_coredump;
+  const char *runtime_blacklist;
 };
 
 inline CommonFlags *common_flags() {

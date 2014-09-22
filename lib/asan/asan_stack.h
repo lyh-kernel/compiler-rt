@@ -96,4 +96,10 @@ void GetStackTraceWithPcBpAndContext(StackTrace *stack, uptr max_depth, uptr pc,
     stack.Print();              \
   }
 
+#define IN_RUNTIME_BLACKLIST(is_blocked) \
+  { \
+    GET_STACK_TRACE_FATAL_HERE; \
+    is_blocked = stack.InRuntimeBlacklist(); \
+  }
+
 #endif  // ASAN_STACK_H
