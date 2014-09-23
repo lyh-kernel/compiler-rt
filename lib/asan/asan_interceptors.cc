@@ -365,8 +365,6 @@ void *__asan_memcpy(void *to, const void *from, uptr size) {
   bool is_blocked;
   IN_RUNTIME_BLACKLIST(is_blocked)
   if (flags()->replace_intrin && !is_blocked) {
-    //PRINT_CURRENT_STACK()
-    Report("flags()->replace_intrin = true\n");
     if (to != from) {
       // We do not treat memcpy with to==from as a bug.
       // See http://llvm.org/bugs/show_bug.cgi?id=11763.

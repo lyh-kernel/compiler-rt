@@ -28,6 +28,8 @@ bool StackTrace::InRuntimeBlacklistStack(const uptr *addr, uptr size) {
 #define NULL ((char *)0)
   // Open the runtime blacklist
   const char *runtime_blacklist = common_flags()->runtime_blacklist;
+  if (!runtime_blacklist)
+    return false;
   uptr rb_fd = OpenFile(runtime_blacklist, false);
   if (internal_iserror(rb_fd)) {
     Report("Open %s failed\n", runtime_blacklist);
